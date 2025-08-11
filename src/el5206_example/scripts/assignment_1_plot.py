@@ -3,60 +3,60 @@ import rospy
 from nav_msgs.msg import Odometry
 import matplotlib.pyplot as plt
 import math
-import time
+import threading
 
 class OdomPlotter:
-    def __init__(self):
-        rospy.init_node('odom_plotter_node', anonymous=True)
+    def __init__(self, duration=30):
+        rospy.init_node('odom_vs_gt_plotter_node', anonymous=True)
+
+        # Suscriptores
         self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        self.gt_sub = rospy.Subscriber('/ground_truth/state', Odometry, self.gt_callback)
 
-        self.xs = []
-        self.ys = []
-        self.yaws = []
+        # Datos odometría estimada
+        self.odom_xs, self.odom_ys = [], []
+        # Datos ground truth
+        self.gt_xs, self.gt_ys = [], []
 
-        self.start_time = time.time()
-        self.duration = 30  # segundos
-        rospy.loginfo(f"Grabando datos de odometría durante {self.duration} segundos...")
+        self.duration = duration
+
+        rospy.loginfo(f"OdomPlotter iniciado. Grabando datos por {self.duration} segundos...")
+
+        # Temporizador para detener después del tiempo indicado
+        threading.Timer(self.duration, self.stop_and_plot).start()
 
     def odom_callback(self, msg):
-        # Extraer posición
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
+        self.odom_xs.append(x)
+        self.odom_ys.append(y)
 
-        # Convertir orientación a yaw
-        q = msg.pose.pose.orientation
-        yaw = self.quaternion_to_yaw(q.x, q.y, q.z, q.w)
+    def gt_callback(self, msg):
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+        self.gt_xs.append(x)
+        self.gt_ys.append(y)
 
-        self.xs.append(x)
-        self.ys.append(y)
-        self.yaws.append(yaw)
-
-        elapsed = time.time() - self.start_time
-        rospy.loginfo(f"t={elapsed:.1f}s  Pose: x={x:.2f}, y={y:.2f}, θ={math.degrees(yaw):.2f}°")
-
-        # Si pasa el tiempo límite, paramos ROS
-        if elapsed >= self.duration:
-            rospy.loginfo("Tiempo de grabación finalizado. Generando gráfico...")
-            rospy.signal_shutdown("Tiempo completado.")
-
-    def quaternion_to_yaw(self, x, y, z, w):
-        # Fórmula estándar de conversión
-        siny_cosp = 2.0 * (w * z + x * y)
-        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-        return math.atan2(siny_cosp, cosy_cosp)
+    def stop_and_plot(self):
+        rospy.loginfo("Tiempo completado. Generando gráfico...")
+        rospy.signal_shutdown("Fin de grabación")
+        self.plot()
 
     def plot(self):
         plt.figure()
-        plt.plot(self.xs, self.ys, label='Odometry')
+        plt.plot(self.odom_xs, self.odom_ys, label='Odometry (/odom)', linewidth=2)
+        plt.plot(self.gt_xs, self.gt_ys, label='Ground Truth (/ground_truth/state)', linewidth=2, linestyle='--')
         plt.xlabel('X [m]')
         plt.ylabel('Y [m]')
-        plt.title('Robot Trajectory from Odometry')
+        plt.title('Comparación de Trayectorias')
         plt.axis('equal')
         plt.legend()
         plt.grid()
         plt.show()
 
 if __name__ == '__main__':
-    plotter = OdomPlotter()
-    rospy.on_shutdown(plotter.plot)
-    rospy.spin()
+    try:
+        OdomPlotter(duration=30)
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
