@@ -1,45 +1,46 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
+import rospy
 from geometry_msgs.msg import Twist
 import sys
 import tty
 import termios
 
-class TeleopKeyboardNode(Node):
+class TeleopKeyboardNode:
     def __init__(self):
-        super().__init__('teleop_keyboard_node')
-        self.publisher = self.create_publisher(Twist, 'rellena aquí el tópico de velocidades', 10)
-        self.get_logger().info('Teleop node started. Use WASD to move, X to stop.')
+        rospy.init_node('teleop_keyboard_node', anonymous=True)
+        self.publisher = rospy.Publisher('completar ', Twist, queue_size=10)
 
+        rospy.loginfo('Teleop node started. Use W/S to move forward/backward, A/D to turn, X to stop.')
+        
         self.settings = termios.tcgetattr(sys.stdin)
         self.run()
 
-    # Puedes modificar esta función para leer las teclas con lo que prefieras
     def get_key(self):
+        """Lee una tecla de forma no bloqueante."""
         tty.setraw(sys.stdin.fileno())
         key = sys.stdin.read(1)
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
         return key
 
     def run(self):
-        # linear = 
-        # angular = 
+        linear_speed = 
+        angular_speed = # un número
 
-        while rclpy.ok():
+        while not rospy.is_shutdown():
             key = self.get_key()
             twist = Twist()
 
             if key == 'w':
-                #Completar
+                twist.linear.x = linear_speed
+            elif key == 's':
+
+            elif key == '\x03':  # Ctrl+C
+                break
 
             self.publisher.publish(twist)
 
-def main(args=None):
-    rclpy.init(args=args)
-    node = TeleopKeyboardNode()
-    node.destroy_node()
-    rclpy.shutdown()
-
 if __name__ == '__main__':
-    main()
+    try:
+        TeleopKeyboardNode()
+    except rospy.ROSInterruptException:
+        pass
