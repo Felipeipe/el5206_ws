@@ -3,6 +3,7 @@ import rospy
 from nav_msgs.msg import Odometry
 import matplotlib.pyplot as plt
 import math
+import time
 
 class OdomPlotter:
     def __init__(self):
@@ -13,7 +14,9 @@ class OdomPlotter:
         self.ys = []
         self.yaws = []
 
-        rospy.loginfo("OdomPlotter iniciado. Presiona Ctrl+C para detener y mostrar el gráfico.")
+        self.start_time = time.time()
+        self.duration = 30  # segundos
+        rospy.loginfo(f"Grabando datos de odometría durante {self.duration} segundos...")
 
     def odom_callback(self, msg):
         # Extraer posición
@@ -28,7 +31,13 @@ class OdomPlotter:
         self.ys.append(y)
         self.yaws.append(yaw)
 
-        rospy.loginfo(f'Pose: x={x:.2f}, y={y:.2f}, θ={math.degrees(yaw):.2f}°')
+        elapsed = time.time() - self.start_time
+        rospy.loginfo(f"t={elapsed:.1f}s  Pose: x={x:.2f}, y={y:.2f}, θ={math.degrees(yaw):.2f}°")
+
+        # Si pasa el tiempo límite, paramos ROS
+        if elapsed >= self.duration:
+            rospy.loginfo("Tiempo de grabación finalizado. Generando gráfico...")
+            rospy.signal_shutdown("Tiempo completado.")
 
     def quaternion_to_yaw(self, x, y, z, w):
         # Fórmula estándar de conversión
@@ -49,9 +58,5 @@ class OdomPlotter:
 
 if __name__ == '__main__':
     plotter = OdomPlotter()
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        rospy.loginfo("Interrumpido por el usuario. Cerrando ROS y generando gráfico...")
-        rospy.signal_shutdown("Usuario interrumpió el nodo.")
-        plotter.plot()
+    rospy.on_shutdown(plotter.plot)
+    rospy.spin()
