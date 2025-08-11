@@ -13,6 +13,8 @@ class OdomPlotter:
         self.ys = []
         self.yaws = []
 
+        rospy.loginfo("OdomPlotter iniciado. Presiona Ctrl+C para detener y mostrar el gráfico.")
+
     def odom_callback(self, msg):
         # Extraer posición
         x = msg.pose.pose.position.x
@@ -35,6 +37,7 @@ class OdomPlotter:
         return math.atan2(siny_cosp, cosy_cosp)
 
     def plot(self):
+        plt.figure()
         plt.plot(self.xs, self.ys, label='Odometry')
         plt.xlabel('X [m]')
         plt.ylabel('Y [m]')
@@ -49,5 +52,6 @@ if __name__ == '__main__':
     try:
         rospy.spin()
     except KeyboardInterrupt:
-        print("\nInterrupted. Plotting...")
+        rospy.loginfo("Interrumpido por el usuario. Cerrando ROS y generando gráfico...")
+        rospy.signal_shutdown("Usuario interrumpió el nodo.")
         plotter.plot()
