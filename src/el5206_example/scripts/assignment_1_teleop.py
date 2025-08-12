@@ -8,7 +8,7 @@ import termios
 class TeleopKeyboardNode:
     def __init__(self):
         rospy.init_node('teleop_keyboard_node', anonymous=True)
-        self.publisher = rospy.Publisher('completar ', Twist, queue_size=10)
+        self.publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
 
         rospy.loginfo('Teleop node started. Use W/S to move forward/backward, A/D to turn, X to stop.')
         
@@ -21,10 +21,9 @@ class TeleopKeyboardNode:
         key = sys.stdin.read(1)
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
         return key
-
     def run(self):
-        linear_speed = 
-        angular_speed = # un número
+        linear_speed = 1.0
+        angular_speed = 1.0
 
         while not rospy.is_shutdown():
             key = self.get_key()
@@ -32,8 +31,15 @@ class TeleopKeyboardNode:
 
             if key == 'w':
                 twist.linear.x = linear_speed
+            elif key == 'a':
+                twist.angular.z = angular_speed
             elif key == 's':
-
+                twist.linear.x = -linear_speed/2
+            elif key == 'd':
+                twist.angular.z = -angular_speed
+            elif key == 'x':
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
             elif key == '\x03':  # Ctrl+C
                 break
 
