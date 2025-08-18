@@ -60,7 +60,17 @@ class OdomPlotter:
         plt.show()
 
 if __name__ == '__main__':
+    import pandas as pd 
+    
     plotter = OdomPlotter()
     rospy.spin()
+    df = pd.DataFrame() 
+    df['xs'] = plotter.xs
+    df['ys'] = plotter.ys
+    df['yaws'] = plotter.yaws
+    df['xt'] = plotter.xt
+    df['yt'] = plotter.yt
+    df['yawt'] = plotter.yawt
+    df.to_csv('tabla.csv')
     print("\nInterrupted. Plotting...")
     plotter.plot()
