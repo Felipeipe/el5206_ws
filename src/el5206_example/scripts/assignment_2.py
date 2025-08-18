@@ -1,26 +1,31 @@
 #!/usr/bin/env python3
 import rospy
-from geometry_msgs.msg import Twist, Pose2D
+from geometry_msgs.msg import Twist, Pose2D, PoseStamped
 from nav_msgs.msg import Odometry
 import math
+import numpy as np
+from tf.transformations import euler_from_quaternion
 
 class MoveRobotNode:
     def __init__(self):
         rospy.init_node("move_robot_node", anonymous=True)
 
-        self.approach = 1 # o 2
+        self.approach = 2 # o 2
 
         # Publishers / Subscribers
-        self.cmd_pub = rospy.Publisher("completa tópico velocidades", Twist, queue_size=10)
-        rospy.Subscriber("completa tópico odometría", Odometry, self.odom_callback)
-        rospy.Subscriber("completa tópico target", Pose2D, self.target_callback)
+        self.cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
+        rospy.Subscriber("/odom", Odometry, self.odom_callback)
+        rospy.Subscriber("/move_base_simple/goal", PoseStamped, self.target_callback)
 
         # Variables de estado
         self.current_pose = Pose2D()
         self.target_pose = None
 
         rospy.loginfo(f"Node started. Using approach {self.approach}")
-
+        self.dx = None
+        self.dy = None
+        self.goal_yaw = None
+        
     def odom_callback(self, msg):
         """Extrae x, y y yaw desde odometría"""
         self.current_pose.x = msg.pose.pose.position.x
@@ -30,10 +35,16 @@ class MoveRobotNode:
         yaw = self.quaternion_to_yaw(q.x, q.y, q.z, q.w)
         self.current_pose.theta = yaw
 
-    def target_callback(self, msg):
+    def target_callback(self, msg:PoseStamped):
         """Almacena el objetivo recibido"""
-        self.target_pose = msg
-        rospy.loginfo(f"New target: x={msg.x:.2f}, y={msg.y:.2f}, θ={math.degrees(msg.theta):.1f}°")
+        
+        self.target_pose = Pose2D() 
+        self.target_pose.x = msg.pose.position.x
+        self.target_pose.y = msg.pose.position.y
+        q = msg.pose.orientation
+        r,p,theta = euler_from_quaternion([q.x, q.y, q.z, q.w])
+        self.target_pose.theta = theta
+        rospy.loginfo(f"New target: x={self.target_pose.x:.2f}, y={self.target_pose.x:.2f}, θ={math.degrees(self.target_pose.theta):.1f}°")
 
     def quaternion_to_yaw(self, x, y, z, w):
         """Convierte un cuaternión a yaw"""
@@ -61,39 +72,64 @@ class MoveRobotNode:
     def approach_one(self):
         """Girar hacia el objetivo y luego avanzar recto"""
         twist = Twist()
-
-        dx = # target_x - current_x
-        dy = # target_y - current_y
-        goal_yaw = # investigar función trigonométrica útil. Pista: es atan (pero no atan normal, INVESTIGAR qué usar)
-
+        target_x, target_y, target_yaw = self.target_pose.x,self.target_pose.y,self.target_pose.theta
+        current_x, current_y, current_yaw = self.current_pose.x,self.current_pose.y,self.current_pose.theta
+        
+        dx = target_x - current_x
+        dy = target_y - current_y
+        goal_yaw_error = target_yaw - current_yaw
+        
         # Error angular
-        yaw_error = #goal_yaw - current_yaw
-        yaw_error = math.#completar las funciones trigonométricas como antes!
-
+        yaw_error = np.arctan2(dy, dx) - current_yaw
+        
         # Umbral angular
-        if abs(yaw_error) > #escoger umbral angular:
+        if abs(yaw_error) > 0.2:
             twist.angular.z = 0.3 * yaw_error
         else:
             # Una vez alineado, avanzar
-            dist = #completar distancia euclidiana!
-            if dist > #escoger umbral de distancia:
+            dist = np.sqrt(dx**2+dy**2)
+            if dist > 0.2:
                 twist.linear.x = 0.2
+            elif abs(goal_yaw_error) > 0.2:
+                twist.angular.z = 0.3 * goal_yaw_error
+            else:
+                twist.angular.z=0.0
+                twist.linear.x=0.0
 
-        # self.cmd_pub.publish(COMPLETAR EL MENSAJE NECESARIO)
+        self.cmd_pub.publish(twist)
 
     def approach_two(self):
         """Control continuo con feedback"""
         twist = Twist()
 
-        dx = #Completar
-        dy = #Completar
-        dist = #Completar
-        goal_yaw = #Completar
+        target_x, target_y, target_yaw = self.target_pose.x,self.target_pose.y,self.target_pose.theta
+        current_x, current_y, current_yaw = self.current_pose.x,self.current_pose.y,self.current_pose.theta
+        
+        dx = target_x - current_x
+        dy = target_y - current_y
+        dist = np.sqrt(dx**2+dy**2)
+            
+        goal_yaw_error = target_yaw - current_yaw
+        yaw_error = np.arctan2(dy, dx) - current_yaw
+        
+        # Ganancias de control (ajustables)
+        K_lin = 0.1
+        K_ang = 1
 
-        yaw_error = #Completar
-        yaw_error = #Completar
-
-        #COMPLETAR ESTA FUNCIÓN CASI POR COMPLETO
+        # Control proporcional
+        if dist > 0.2:
+            twist.linear.x = K_lin * dist
+            twist.angular.z = K_ang * yaw_error
+        else:
+            # Cuando está cerca del objetivo, ajustar orientación final
+            if abs(goal_yaw_error) > 0.1:
+                twist.angular.z = K_ang * goal_yaw_error
+            else:
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                rospy.loginfo("Goal reached!")
+        
+        self.cmd_pub.publish(twist)
 
 if __name__ == "__main__":
     node = MoveRobotNode()

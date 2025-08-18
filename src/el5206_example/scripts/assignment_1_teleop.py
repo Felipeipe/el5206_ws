@@ -22,8 +22,8 @@ class TeleopKeyboardNode:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
         return key
     def run(self):
-        linear_speed = 1.0
-        angular_speed = 1.0
+        linear_speed = 0.3
+        angular_speed = 0.3
 
         while not rospy.is_shutdown():
             key = self.get_key()
