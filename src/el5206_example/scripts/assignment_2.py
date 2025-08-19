@@ -4,7 +4,6 @@ from geometry_msgs.msg import Twist, Pose2D, PoseStamped
 from nav_msgs.msg import Odometry
 import math
 import numpy as np
-from tf.transformations import euler_from_quaternion
 
 class MoveRobotNode:
     def __init__(self):
@@ -42,7 +41,7 @@ class MoveRobotNode:
         self.target_pose.x = msg.pose.position.x
         self.target_pose.y = msg.pose.position.y
         q = msg.pose.orientation
-        r,p,theta = euler_from_quaternion([q.x, q.y, q.z, q.w])
+        theta = self.quaternion_to_yaw(q.x, q.y, q.z, q.w)
         self.target_pose.theta = theta
         rospy.loginfo(f"New target: x={self.target_pose.x:.2f}, y={self.target_pose.x:.2f}, θ={math.degrees(self.target_pose.theta):.1f}°")
 
