@@ -24,7 +24,12 @@ class MoveRobotNode:
         self.dx = None
         self.dy = None
         self.goal_yaw = None
-        
+        self.max_linear = 0.3 
+        self.max_ang = 0.6
+        self.dist_tolerance = 0.1
+        self.ang_tolerance = 0.3
+        self.goal_reached = False
+
     def odom_callback(self, msg):
         """Extrae x, y y yaw desde odometría"""
         self.current_pose.x = msg.pose.pose.position.x
@@ -84,18 +89,24 @@ class MoveRobotNode:
         # Umbral angular
         if abs(yaw_error) > 0.2:
             twist.angular.z = 0.3 * yaw_error
+            if abs(twist.angular.z) > self.max_ang:
+                twist.angular.z = np.sign(twist.angular.z)*self.max_ang
         else:
             # Una vez alineado, avanzar
             dist = np.sqrt(dx**2+dy**2)
             if dist > 0.2:
-                twist.linear.x = 0.2
+                twist.linear.x = 0.3
             elif abs(goal_yaw_error) > 0.2:
                 twist.angular.z = 0.3 * goal_yaw_error
+                if abs(twist.angular.z) > self.max_ang:
+                    twist.angular.z = np.sign(twist.angular.z)*self.max_ang
             else:
                 twist.angular.z=0.0
                 twist.linear.x=0.0
 
         self.cmd_pub.publish(twist)
+    def angle_normalizer(self, angle):
+        return (angle + np.pi) % (2 * np.pi) - np.pi
 
     def approach_two(self):
         """Control continuo con feedback"""
@@ -106,28 +117,41 @@ class MoveRobotNode:
         
         dx = target_x - current_x
         dy = target_y - current_y
-        dist = np.sqrt(dx**2+dy**2)
+        dist_error = np.sqrt(dx**2+dy**2)
             
-        goal_yaw_error = target_yaw - current_yaw
-        yaw_error = np.arctan2(dy, dx) - current_yaw
-        
+        goal_yaw_error = self.angle_normalizer(target_yaw - current_yaw)
+        heading_error = self.angle_normalizer(np.arctan2(dy, dx) - current_yaw) 
         # Ganancias de control (ajustables)
         K_lin = 0.1
         K_ang = 1
+        K_head = 2.5
+        if dist_error < self.dist_tolerance and abs(goal_yaw_error) < self.ang_tolerance:
+            if not self.goal_reached:
+                rospy.loginfo("Goal reached! Stopping the robot")
+                self.goal_reached = True
+            twist.linear.x = 0.0
+            twist.angular.z = 0.0
+        else: 
+            self.goal_reached = False
+            twist.angular.z = K_ang*goal_yaw_error + K_head*heading_error
+            if abs(twist.angular.z) > self.max_ang:
+                twist.angular.z = np.sign(twist.angular.z)*self.max_ang
+            twist.linear.x = K_lin*dist_error
+            if twist.linear.x > self.max_linear:
+                twist.linear.x = self.max_linear
+        # # Control proporcional
+        # if dist > 0.2:
+            # twist.linear.x = K_lin * dist
+            # twist.angular.z = K_ang * yaw_error
+        # else:
+            # # Cuando está cerca del objetivo, ajustar orientación final
+            # if abs(goal_yaw_error) > 0.1:
+                # twist.angular.z = K_ang * goal_yaw_error
+            # else:
+                # twist.linear.x = 0.0
+                # twist.angular.z = 0.0
+                # rospy.loginfo("Goal reached!")
 
-        # Control proporcional
-        if dist > 0.2:
-            twist.linear.x = K_lin * dist
-            twist.angular.z = K_ang * yaw_error
-        else:
-            # Cuando está cerca del objetivo, ajustar orientación final
-            if abs(goal_yaw_error) > 0.1:
-                twist.angular.z = K_ang * goal_yaw_error
-            else:
-                twist.linear.x = 0.0
-                twist.angular.z = 0.0
-                rospy.loginfo("Goal reached!")
-        
         self.cmd_pub.publish(twist)
 
 if __name__ == "__main__":
