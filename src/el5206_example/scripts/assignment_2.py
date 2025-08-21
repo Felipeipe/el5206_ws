@@ -179,9 +179,9 @@ class MoveRobotNode:
             
             # limitamos 
             if abs(twist.linear.x) > self.max_linear:
-                    twist.linear.x = np.sign(twist.linear.x)*self.max_linear
+                twist.linear.x = np.sign(twist.linear.x)*self.max_linear
             if abs(twist.angular.z) > self.max_ang:
-                    twist.angular.z = np.sign(twist.angular.z)*self.max_ang
+                twist.angular.z = np.sign(twist.angular.z)*self.max_ang
         else:
             # Cuando está cerca del objetivo, ajustar orientación final
             if abs(goal_yaw_error) > 0.1:
