@@ -9,7 +9,7 @@ class MoveRobotNode:
     def __init__(self):
         rospy.init_node("move_robot_node", anonymous=True)
 
-        self.approach = 2 # o 2
+        self.approach = 3
 
         # Publishers / Subscribers
         self.cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
@@ -26,7 +26,8 @@ class MoveRobotNode:
         self.goal_yaw = None
         self.max_linear = 0.3 
         self.max_ang = 0.6
-        self.dist_tolerance = 0.1
+        self.dist_tolerance = 0.05
+        self.ang_tolerance_1 = 0.1
         self.ang_tolerance = 0.3
         self.goal_reached = False
 
@@ -68,8 +69,10 @@ class MoveRobotNode:
                 self.approach_one()
             elif self.approach == 2:
                 self.approach_two()
+            elif self.approach == 3:
+                self.approach_three()
             else:
-                rospy.logwarn("Invalid approach selected. Use 1 or 2.")
+                rospy.logwarn("Invalid approach selected. Use 1, 2 or 3.")
 
             rate.sleep()
 
@@ -82,27 +85,36 @@ class MoveRobotNode:
         dx = target_x - current_x
         dy = target_y - current_y
         goal_yaw_error = target_yaw - current_yaw
+        dist = np.sqrt(dx**2+dy**2)
         
         # Error angular
         yaw_error = np.arctan2(dy, dx) - current_yaw
         
-        # Umbral angular
-        if abs(yaw_error) > 0.2:
-            twist.angular.z = 0.3 * yaw_error
-            if abs(twist.angular.z) > self.max_ang:
-                twist.angular.z = np.sign(twist.angular.z)*self.max_ang
-        else:
-            # Una vez alineado, avanzar
-            dist = np.sqrt(dx**2+dy**2)
-            if dist > 0.2:
+        # Si estamos lejos
+        if dist > self.dist_tolerance:
+            # Apuntamos al objetivo
+            if abs(yaw_error) > self.ang_tolerance_1:
+                twist.angular.z = 0.3 * yaw_error
+                if abs(twist.angular.z) > self.max_ang:
+                    twist.angular.z = np.sign(twist.angular.z)*self.max_ang
+            # Si estamos apuntando al objetivo avanzamos
+            else:
                 twist.linear.x = 0.3
-            elif abs(goal_yaw_error) > 0.2:
+        
+        # Si ya estamos en el objetivo pero no orientados
+        else:
+            # Una vez en el punto, orientar
+            if abs(goal_yaw_error) > self.ang_tolerance_1:
                 twist.angular.z = 0.3 * goal_yaw_error
                 if abs(twist.angular.z) > self.max_ang:
                     twist.angular.z = np.sign(twist.angular.z)*self.max_ang
+            # Una vez orientados, frenamos xd
             else:
                 twist.angular.z=0.0
                 twist.linear.x=0.0
+                if not self.goal_reached:
+                    rospy.loginfo("Goal reached! Stopping the robot")
+                    self.goal_reached = True
 
         self.cmd_pub.publish(twist)
     def angle_normalizer(self, angle):
@@ -123,7 +135,7 @@ class MoveRobotNode:
         heading_error = self.angle_normalizer(np.arctan2(dy, dx) - current_yaw) 
         # Ganancias de control (ajustables)
         K_lin = 0.1
-        K_ang = 1
+        K_ang = 0.5
         K_head = 2.5
         if dist_error < self.dist_tolerance and abs(goal_yaw_error) < self.ang_tolerance:
             if not self.goal_reached:
@@ -139,21 +151,49 @@ class MoveRobotNode:
             twist.linear.x = K_lin*dist_error
             if twist.linear.x > self.max_linear:
                 twist.linear.x = self.max_linear
-        # # Control proporcional
-        # if dist > 0.2:
-            # twist.linear.x = K_lin * dist
-            # twist.angular.z = K_ang * yaw_error
-        # else:
-            # # Cuando está cerca del objetivo, ajustar orientación final
-            # if abs(goal_yaw_error) > 0.1:
-                # twist.angular.z = K_ang * goal_yaw_error
-            # else:
-                # twist.linear.x = 0.0
-                # twist.angular.z = 0.0
-                # rospy.loginfo("Goal reached!")
 
         self.cmd_pub.publish(twist)
+        
+    def approach_three(self):
+        """ Control continuo con feedback, pero se reorienta a la pose al final"""
+        twist = Twist()
 
+        target_x, target_y, target_yaw = self.target_pose.x,self.target_pose.y,self.target_pose.theta
+        current_x, current_y, current_yaw = self.current_pose.x,self.current_pose.y,self.current_pose.theta
+        
+        dx = target_x - current_x
+        dy = target_y - current_y
+        dist_error = np.sqrt(dx**2+dy**2)
+            
+        goal_yaw_error = self.angle_normalizer(target_yaw - current_yaw)
+        heading_error = self.angle_normalizer(np.arctan2(dy, dx) - current_yaw) 
+        # Ganancias de control (ajustables)
+        K_lin = 0.2
+        K_ang = 0.5
+        K_head = 1 #2.5
+
+        # Control proporcional
+        if dist_error > self.dist_tolerance:
+            twist.linear.x = K_lin * dist_error
+            twist.angular.z = K_head * heading_error 
+            
+            # limitamos 
+            if abs(twist.linear.x) > self.max_linear:
+                    twist.linear.x = np.sign(twist.linear.x)*self.max_linear
+            if abs(twist.angular.z) > self.max_ang:
+                    twist.angular.z = np.sign(twist.angular.z)*self.max_ang
+        else:
+            # Cuando está cerca del objetivo, ajustar orientación final
+            if abs(goal_yaw_error) > 0.1:
+                twist.angular.z = K_ang * goal_yaw_error
+            else:
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                if not self.goal_reached:
+                    rospy.loginfo("Goal reached! Stopping the robot")
+                    self.goal_reached = True
+                
+        self.cmd_pub.publish(twist)        
 if __name__ == "__main__":
     node = MoveRobotNode()
     try:
@@ -161,4 +201,20 @@ if __name__ == "__main__":
     except rospy.ROSInterruptException:
         pass
 
+# rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
+#   seq: 0
+#   stamp:
+#     secs: 0
+#     nsecs: 0
+#   frame_id: 'world'
+# pose:
+#   position:
+#     x: 1.0
+#     y: 2.0
+#     z: 0.0
+#   orientation:
+#     x: 0.0
+#     y: 0.0
+#     z: 0.0
+#     w: 1.0" 
 
