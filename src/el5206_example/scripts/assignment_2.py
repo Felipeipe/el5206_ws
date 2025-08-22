@@ -9,7 +9,7 @@ class MoveRobotNode:
     def __init__(self):
         rospy.init_node("move_robot_node", anonymous=True)
 
-        self.approach = 3
+        self.approach = 2
 
         # Publishers / Subscribers
         self.cmd_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
