@@ -78,11 +78,8 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
 
-    # Convertir todo lo guardado directamente a DataFrame
     df_sync = pd.DataFrame(plotter.data)
 
-    # Guardar CSV
-    df_sync.to_csv('tabla_sync.csv', index=False)
 
     print("\nInterrupted. Plotting synced data...")
     plotter.plot(df_sync)
