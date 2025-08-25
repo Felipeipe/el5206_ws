@@ -38,7 +38,7 @@ def line_from_points(p1, p2):
 # ---------- Nodo principal ----------
 class GeometricMapperNode:
     def __init__(self):
-        rospy.init_node("assignment3_mapper_no_refit", anonymous=True)
+        # rospy.init_node("assignment3_mapper_no_refit", anonymous=True)
 
         # Params
         self.duration = rospy.get_param("~duration", 15.0)      # s de grabación
@@ -54,8 +54,8 @@ class GeometricMapperNode:
 
         # Subs
         var_odom = "/ground_truth/state" # /odom
-        self.sub_odom = rospy.Subscriber(var_odom, Odometry, self.odom_cb, queue_size=10)
-        self.sub_scan = rospy.Subscriber("/scan", LaserScan, self.scan_cb, queue_size=10)
+        # self.sub_odom = rospy.Subscriber(var_odom, Odometry, self.odom_cb, queue_size=10)
+        # self.sub_scan = rospy.Subscriber("/scan", LaserScan, self.scan_cb, queue_size=10)
 
         # Buffers
         self.last_odom = None 
@@ -166,7 +166,7 @@ class GeometricMapperNode:
         gx, gy = zip(*self.global_pts)
         xmin, xmax = min(gx)-1.0, max(gx)+1.0
         ymin, ymax = min(gy)-1.0, max(gy)+1.0
-
+        np.save('odom.npy', np.array(self.global_pts))
         plt.figure(figsize=(8, 8))
 
         # nube de puntos tenue para contexto
@@ -195,6 +195,8 @@ class GeometricMapperNode:
 if __name__ == "__main__":
     try:
         node = GeometricMapperNode()
-        rospy.spin()
+        # rospy.spin()
+        points = np.load('gt_lidar.npy')
+        node.ransac_lines()
     except rospy.ROSInterruptException:
         pass
