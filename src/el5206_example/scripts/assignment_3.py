@@ -195,8 +195,6 @@ class GeometricMapperNode:
 if __name__ == "__main__":
     try:
         node = GeometricMapperNode()
-        # rospy.spin()
-        points = np.load('gt_lidar.npy')
-        node.ransac_lines()
+        rospy.spin()
     except rospy.ROSInterruptException:
         pass
