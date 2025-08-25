@@ -3,6 +3,7 @@ import rospy
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
@@ -23,9 +24,9 @@ def line_from_points(p1, p2):
   # COMPLETAR con la ecuación de la recta de toda la vida
   ## Recta a*x + b*y + c = 0 normalizada (c >= 0) a partir de 2 puntos.
 
-    a = 
-    b = 
-    c = 
+    a = (y1 - y2) / (x2 -x1)
+    b = 1
+    c = -a*x1-y1
     norm = math.hypot(a, b)
     if norm == 0:
         return None
@@ -40,19 +41,20 @@ class GeometricMapperNode:
         rospy.init_node("assignment3_mapper_no_refit", anonymous=True)
 
         # Params
-        self.duration = rospy.get_param("~duration", 20.0)      # s de grabación
-        self.sample_rate = rospy.get_param("~sample_rate", 5.0) # Hz de muestreo
+        self.duration = rospy.get_param("~duration", 15.0)      # s de grabación
+        self.sample_rate = rospy.get_param("~sample_rate", 0.5) # Hz de muestreo
         self.min_range = rospy.get_param("~min_range", 0.05)
         self.max_range = rospy.get_param("~max_range", 10.0)
 
         # RANSAC (sin fusión posterior, sin refit)
         self.ransac_dist_thresh = rospy.get_param("~ransac_dist_thresh", 0.05)
-        self.ransac_min_inliers = rospy.get_param("~ransac_min_inliers", 50)
+        self.ransac_min_inliers = rospy.get_param("~ransac_min_inliers", 100)
         self.ransac_max_iter = rospy.get_param("~ransac_max_iter", 1000)
-        self.max_lines = rospy.get_param("~max_lines", 10)
+        self.max_lines = rospy.get_param("~max_lines", 5)
 
         # Subs
-        self.sub_odom = rospy.Subscriber("probar con el tópico ODOM y con GT como se indica en el enunciado", Odometry, self.odom_cb, queue_size=10)
+        var_odom = "/ground_truth/state" # /odom
+        self.sub_odom = rospy.Subscriber(var_odom, Odometry, self.odom_cb, queue_size=10)
         self.sub_scan = rospy.Subscriber("/scan", LaserScan, self.scan_cb, queue_size=10)
 
         # Buffers
@@ -126,8 +128,25 @@ class GeometricMapperNode:
     # ---- RANSAC  ----
     def ransac_lines(self, points, dist_thresh, min_inliers, max_iter, max_lines):
     # COMPLETAR
-
-        return found
+        lines = []
+        point_1 = random.choice(points)
+        point_2 = random.choice(points)
+        line = line_from_points(point_1, point_2)
+        for i in range(max_iter):
+            inliers = []
+            for p in points:
+                distance = abs(line[0]*p[0] + line[1]*p[1] + line[2])
+                if distance < dist_thresh:
+                    inliers.append(p)
+            if len(inliers) >= min_inliers:
+                lines.append(line)
+                if len(lines) >= max_lines:
+                    break
+                points = [p for p in points if p not in inliers]
+            point_1 = random.choice(points)
+            point_2 = random.choice(points)
+            line = line_from_points(point_1, point_2)
+        return lines
 
     # ---- Graficar ----
     def finish_and_plot(self):
