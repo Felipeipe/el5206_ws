@@ -22,8 +22,8 @@ class EL5206_Robot:
         rospy.init_node('EL5206_Assignment4', anonymous=False)
 
         # ---------- Frames ----------
-        self.robot_frame_id = 'COMPLETAR'
-        self.odom_frame_id  = 'COMPLETAR'
+        self.robot_frame_id = "base_link"
+        self.odom_frame_id  = 'world'  # 'odom'
 
         # ---------- Estados ----------
         self.currentScan = None
@@ -47,11 +47,11 @@ class EL5206_Robot:
         self.rep_clip = rospy.get_param("~rep_clip", 5.0)   # Clip de cada término repulsivo
 
         # ---------- ROS I/O ----------
-        rospy.Subscriber("usen ground truth!!!", Odometry, self.odometryCallback, queue_size=1)
-        rospy.Subscriber("COMPLETAR", LaserScan, self.scanCallback, queue_size=1)
+        rospy.Subscriber("/ground_truth/state", Odometry, self.odometryCallback, queue_size=1)
+        rospy.Subscriber("/scan", LaserScan, self.scanCallback, queue_size=1)
         rospy.Subscriber("/target_pose", Pose2D, self.poseCallback, queue_size=1)
 
-        self.vel_pub = rospy.Publisher('COMPLETAR', Twist, queue_size=1)
+        self.vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
         # ---------- Aux ----------
         self.rate_hz = rospy.get_param("~rate", 20.0)
@@ -110,7 +110,7 @@ class EL5206_Robot:
         dx = self.target_x - self.odom_x
         dy = self.target_y - self.odom_y
         ex_r, ey_r = self.world_to_robot(dx, dy, self.odom_yaw)
-        F_att = #??????
+        F_att = self.k_att * np.array([ex_r, ey_r])
         return F_att
 
     def compute_repulsive(self):
@@ -148,7 +148,7 @@ class EL5206_Robot:
             e = np.array([math.cos(theta), math.sin(theta)])
 
             # Magnitud del potencial
-            mag = #?????
+            mag = self.k_rep / rho**2
             # Dirección de la fuerza es opuesta al obstáculo:
             f_i = -mag * e
 
@@ -173,11 +173,11 @@ class EL5206_Robot:
         phi = math.atan2(Fy, Fx)
 
         # Angular
-        w = 
+        w = self.k_w * phi
         w = max(-self.w_max, min(self.w_max, w))
 
         # Lineal: avanza más cuando F apunta hacia +x (cos positivo)
-        v_nom = 
+        v_nom = self.k_v * normF * math.cos(phi)
 
         # Slowdown cerca de la meta
         if self.target_x is not None and self.odom_x is not None:
@@ -186,9 +186,10 @@ class EL5206_Robot:
             dist = math.hypot(dx, dy)
             if dist < self.slowdown_radius:
                 # Escala linealmente hasta 0 en la meta
-                
+                v_nom = v_nom * (dist / self.slowdown_radius)
 
         v = max(0.0, min(self.v_max, v_nom))
+        
         return v, w
 
     # ======================= Loop principal =======================
@@ -221,7 +222,7 @@ class EL5206_Robot:
             # Fuerzas
             F_att = self.compute_attractive()
             F_rep = self.compute_repulsive()
-            F = #???????
+            F = F_att + F_rep
 
             # Comando
             v, w = self.forces_to_cmd(F)
