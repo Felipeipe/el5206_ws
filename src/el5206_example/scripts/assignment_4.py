@@ -34,18 +34,28 @@ class EL5206_Robot:
         self.path = rospkg.RosPack().get_path('el5206_example') if rospkg.RosPack() else "."
 
         # ---------- Parámetros (ajustar) ----------
-        self.k_att  = rospy.get_param("~k_att", 1.0)        # Ganancia atractiva
-        self.k_rep  = rospy.get_param("~k_rep", 0.5)        # Ganancia repulsiva
-        self.rho0   = rospy.get_param("~rho0", 0.8)         # Umbral de influencia de obstáculos (m)
-        self.v_max  = rospy.get_param("~v_max", 0.4)        # Velocidad lineal máxima (m/s)
-        self.w_max  = rospy.get_param("~w_max", 1.0)        # Velocidad angular máxima (rad/s)
-        self.k_v    = rospy.get_param("~k_v", 0.8)          # Ganancia para v ~ ||F||*cos(phi)
-        self.k_w    = rospy.get_param("~k_w", 1.5)          # Ganancia para w ~ heading(F)
-        self.goal_tol = rospy.get_param("~goal_tol", 0.10)  # Tolerancia de posición (m)
-        self.slowdown_radius = rospy.get_param("~slowdown_radius", 0.8)  # Reduce v cerca de meta
-        self.scan_downsample = rospy.get_param("~scan_downsample", 2)    # Usar 1 de cada N rayos
-        self.rep_clip = rospy.get_param("~rep_clip", 5.0)   # Clip de cada término repulsivo
-
+        self.k_att  = rospy.get_param("/k_att", 7.0)        # Ganancia atractiva
+        self.k_rep  = rospy.get_param("/k_rep", 0.1)        # Ganancia repulsiva
+        self.rho0   = rospy.get_param("/rho0", 1.0)         # Umbral de influencia de obstáculos (m)
+        self.v_max  = rospy.get_param("/v_max", 0.3)        # Velocidad lineal máxima (m/s)
+        self.w_max  = rospy.get_param("/w_max", 0.5)        # Velocidad angular máxima (rad/s)
+        self.k_v    = rospy.get_param("/k_v", 0.8)          # Ganancia para v ~ ||F||*cos(phi)
+        self.k_w    = rospy.get_param("/k_w", 0.5)          # Ganancia para w ~ heading(F)
+        self.goal_tol = rospy.get_param("/goal_tol", 0.10)  # Tolerancia de posición (m)
+        self.slowdown_radius = rospy.get_param("/slowdown_radius", 2.0)  # Reduce v cerca de meta
+        self.scan_downsample = rospy.get_param("/scan_downsample", 2)    # Usar 1 de cada N rayos
+        self.rep_clip = rospy.get_param("/rep_clip", 5.0)   # Clip de cada término repulsivo
+        rospy.set_param("/k_att", self.k_att)
+        rospy.set_param("/k_rep", self.k_rep)
+        rospy.set_param("/rho0", self.rho0)
+        rospy.set_param("/v_max", self.v_max)
+        rospy.set_param("/w_max", self.w_max)
+        rospy.set_param("/k_v", self.k_v)
+        rospy.set_param("/k_w", self.k_w)
+        rospy.set_param("/goal_tol", self.goal_tol)
+        rospy.set_param("/slowdown_radius", self.slowdown_radius)
+        rospy.set_param("/scan_downsample", self.scan_downsample)
+        rospy.set_param("/rep_clip", self.rep_clip)
         # ---------- ROS I/O ----------
         rospy.Subscriber("/ground_truth/state", Odometry, self.odometryCallback, queue_size=1)
         rospy.Subscriber("/scan", LaserScan, self.scanCallback, queue_size=1)
@@ -217,6 +227,7 @@ class EL5206_Robot:
                 # Parar suave
                 self.vel_pub.publish(Twist())
                 self.rate.sleep()
+                rospy.loginfo("Meta alcanzada!")
                 continue
 
             # Fuerzas

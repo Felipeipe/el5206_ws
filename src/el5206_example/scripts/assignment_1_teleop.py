@@ -13,7 +13,11 @@ class TeleopKeyboardNode:
         self.publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         rospy.Subscriber('/odom', Odometry, self.odom_callback)
         rospy.Subscriber('/ground_truth/state', Odometry, self.gt_callback)
-
+        if rospy.has_param("~k_att"):
+            self.k_att = rospy.get_param("~k_att")
+            rospy.loginfo(f'{self.k_att = }') 
+        else:
+            rospy.loginfo("no había parametro")
         rospy.loginfo('Teleop node started. Use W/S to move forward/backward, A/D to turn, X to stop.')
         self.ox = 0.0 
         self.oy = 0.0
