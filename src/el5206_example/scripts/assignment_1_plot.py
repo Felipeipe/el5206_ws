@@ -74,7 +74,7 @@ class OdomPlotter:
 
     def scan_callback(self, scan_msg: LaserScan):
         """Convierte el scan a puntos (x,y) en el marco global"""
-        self.scan_points.clear()
+        # self.scan_points.clear()|
 
         x_r, y_r, yaw_r = self.last_pose
 
@@ -116,9 +116,9 @@ class OdomPlotter:
         plt.axis('equal')
         plt.legend(loc="best")
         plt.grid()
-
+        plt.subplots_adjust(right=0.75)  # deja espacio a la derecha
         param_text = "\n".join([f"{k} = {v:.2f}" for k, v in self.params.items()])
-        plt.gcf().text(1.02, 0.5, param_text, fontsize=10, va='center')
+        plt.figtext(0.77, 0.5, param_text, fontsize=10, va='center')
         plt.show()
 
 
