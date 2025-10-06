@@ -7,5 +7,6 @@ install/
 img/
 Lab-Mov/
 *.pt
+examples/
 Results_*/
 images/
