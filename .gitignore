@@ -6,5 +6,6 @@ install/
 .vscode/
 img/
 Lab-Mov/
+*.pt
 Results_*/
 images/
